@@ -1,0 +1,7 @@
+tensorflow=2.1
+keras
+pandas-datareader
+pandas
+numpy
+matplotlib
+tqdm

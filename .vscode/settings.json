@@ -1,0 +1,20 @@
+{
+    "python.formatting.blackArgs": [
+        "--line-length",
+        "100"
+    ],
+    "python.formatting.provider": "black",
+    "python.pythonPath": "C:\\Development\\Python\\368\\python.exe",
+    "python.jediEnabled": false,
+    "spellright.language": [
+        "de",
+        "en"
+    ],
+    "spellright.documentTypes": [
+        "markdown",
+        "latex",
+        "plaintext",
+        "python"
+    ],
+    // "python.envFile": "${workspaceFolder}/.env"
+}
