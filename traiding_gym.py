@@ -49,7 +49,7 @@ class TradingGym(gym.Env):
         # 3 Aktionen die man ausführen kann
         self.action_space = 3
         # basierend auf window_size=10 => wird später geändert
-        self.state_space = 125
+        self.state_space = 0
 
         self.initial_index = initial_index
         self.curr_index = self.initial_index
@@ -67,13 +67,16 @@ class TradingGym(gym.Env):
         0: hold, 1: buy,  2: sell\n
         Execute one time step within the environment"""
         self.curr_index += 1
-
         self._update_state(action)
 
-        return self.observe(), self.reward, self.game_over
+        return self.get_state(), self.reward, self.game_over
 
-    def observe(self):
+    def get_state(self):
         return np.array([self.state])
+
+    def get_observation_size(self):
+        self.state_space = self.get_state().shape[1]
+        return self.state_space
 
     def reset(self):
         """Muss am Anfang aufgerufen werden.
@@ -100,13 +103,17 @@ class TradingGym(gym.Env):
         self.start_index = self.curr_index
         self.curr_time = self.df.index[self.curr_index]
         self.start_time = self.df.index[self.start_index]
-        # State stuff
-        self.state = []
 
         # Die Aktion, die der Agent am Anfang des Spiels ausgeführt hat.
         # hat der Agent am Anfang gekauft oder verkauft =>
         self.initial_action = Action.HOLD
         self.game_over_action = Action.HOLD
+
+        # State stuff
+        self.state = []
+        self._build_state()
+        self.state_space = self.state.size
+
         # Update state => hold/sit Aktion
         self._update_state(Action.HOLD)
 
@@ -150,7 +157,7 @@ class TradingGym(gym.Env):
         time_delta = self.curr_time - self.start_time
         self.norm_epoch = time_delta.seconds / self.time_unit_in_secs
 
-        """ Spielregeln definieren und Position updaten"""
+        """ Spielregeln [Policy] definieren und Position updaten"""
 
         if action == Action.HOLD:  # hold/sit => nichts tun
             pass
@@ -210,10 +217,10 @@ class TradingGym(gym.Env):
         state = np.append(state, self.initial_action.value)
         # füge die Summe bisheriger Profit/Loss zum state?
         # als -1, 0, oder 1
-        state = np.append(state, np.sign(self.profit_loss_sum_norm))
+        #  TODO: Sollte der Gesamtverlust/gewinn ??
+        # state = np.append(state, np.sign(self.profit_loss_sum_norm))
         # füge den momentanen normierten Gewinn/Verlust an
         state = np.append(state, self.profit_loss_norm)
-        #  TODO: Sollte der Gesamtverlust/gewinn ??
         # füge die normierte Zeit des Tages an
         state = np.append(state, self.norm_time_of_day)
         # füge den normierten Tag der Woche an
@@ -295,7 +302,7 @@ class TradingGym(gym.Env):
         self.reward = np.sign(self.profit_loss_norm) if self.game_over else self.reward
         # print(self.reward + self.profit_loss_norm*100)
         # Lasse den profit_Loss mit einfließen
-        self.reward += self.profit_loss_norm * 100
+        # self.reward += self.profit_loss_norm * 100
         return self.reward
 
     def _assemble_state(self):

@@ -28,7 +28,6 @@ class Agent:
         learning_rate=0.001,
         epsilon_decay=0.995,
         name="Trader",
-        train_random=False,
     ):
         """
         `state_space`: Inputs, die das DQN Netzwerk aufnimmt \n
@@ -51,8 +50,6 @@ class Agent:
         self.inventory = []
         self.name = name
 
-        self.train_random = train_random
-
         # Loss, die Genauigkeit des Netzwerks
         self.loss = 0
         # ein Paar Settings für interne Zwecke
@@ -68,7 +65,7 @@ class Agent:
         # Hidden Units are defined!
         hidden_size = self.state_space * 2
         x = Dense(hidden_size, activation="relu")(input)
-        x = Dense(128, activation="relu")(x)
+        # x = Dense(128, activation="relu")(x)
         x = Dense(128, activation="relu")(x)
         output = Dense(self.action_space, activation="relu", name="actions")(x)
 
@@ -154,22 +151,23 @@ class Agent:
         memory_idx = range(len_memory - length, len_memory)
 
         for i, idx in enumerate(memory_idx):
-            state, action, reward, state_next, game_over = self.memory[idx]
+            state_t, action_t, reward_t, state_t_next, game_over = self.memory[idx]
 
-            states[i] = state
+            states[i] = state_t
             # TODO: Was ist das hier?
             # There should be no target values for actions not taken.
             # Thou shalt not correct actions not taken #deepNN
             # TODO: Setze zu null, die anderen?
-            targets[i] = self.model.predict(state)[0]
+            targets[i] = self.model.predict(state_t)[0]
 
             # if game_over is True
             if game_over:
-                targets[i, action.value] = reward
+                targets[i, action_t.value] = reward_t
             else:
-                # Teil der Q-Matrix
+                # Q-value Ermittlung
                 # reward_t + gamma * max' Q(s', a')
-                Q_sa_max = np.max(self.model.predict(state_next)[0])
-                targets[i, action.value] = reward + self.gamma * Q_sa_max
+                Q_sa_max = np.max(self.model.predict(state_t_next)[0])
+                Q_value_target = reward_t + self.gamma * Q_sa_max
+                targets[i, action_t.value] = Q_value_target
 
         return self.model.train_on_batch(states, targets)

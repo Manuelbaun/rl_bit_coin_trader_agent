@@ -36,11 +36,10 @@ def setup_agent(
     )
 
     env.reset()
-    state_t = env.observe()
-    state_space = state_t.shape[1]
+    state_space = env.get_observation_size()
 
     # Erstelle den Agenten
-    agent = Agent(state_space, name=name, epsilon=epsilon, train_random=False)
+    agent = Agent(state_space, name=name, epsilon=epsilon)
 
     tf.keras.utils.plot_model(agent.model, trade_logs_dir / (agent.name + ".png"), show_shapes=True)
     agent.model.summary()
@@ -56,19 +55,23 @@ def setup_agent(
 
 
 # Lade die Bitcoin Data
-df = get_bit_coin_data(data_dir / "gemini_BTCUSD_2018_1min.csv")
+# df = get_bit_coin_data(data_dir / "gemini_BTCUSD_2015_1min.csv")
+# df = get_bit_coin_data(data_dir / "gemini_BTCUSD_2016_1min.csv")
+# df = get_bit_coin_data(data_dir / "gemini_BTCUSD_2017_1min.csv")
+# df = get_bit_coin_data(data_dir / "gemini_BTCUSD_2018_1min.csv")
+df = get_bit_coin_data(data_dir / "gemini_BTCUSD_2019_1min.csv")
 
 # Training stuff
-window_size = 15  # 10 für trader
+window_size = 10  # 10 für trader
 
-one_day = 60 * 24
-init_start_idx = window_size * one_day  # in Minuten
+one_day = 60 * 24  # In Minuten
+init_start_idx = window_size * one_day
 
-batch_size = 64
+batch_size = 32
 epochs = 10000
 
 max_game_length = 3000
-traderName = "trader_win_15"
+traderName = "trader_10"
 
 
 ## Setup den Agenten, mit den richtigen Dimensionen etc.

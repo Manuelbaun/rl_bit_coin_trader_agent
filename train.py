@@ -56,7 +56,8 @@ def train(
             initial_index=initial_index,
         )
         env.reset()
-        state_t = env.observe()
+        # set init state
+        state_t = env.get_state()
 
         pbar = tqdm(total=max_game_length, desc="Epoch {:5}".format(epoch))
 
