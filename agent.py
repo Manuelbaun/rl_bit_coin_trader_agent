@@ -65,7 +65,7 @@ class Agent:
         # Hidden Units are defined!
         hidden_size = self.state_space * 2
         x = Dense(hidden_size, activation="relu")(input)
-        # x = Dense(128, activation="relu")(x)
+        x = Dense(128, activation="relu")(x)
         x = Dense(128, activation="relu")(x)
         output = Dense(self.action_space, activation="relu", name="actions")(x)
 

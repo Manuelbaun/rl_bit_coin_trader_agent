@@ -79,7 +79,7 @@ def train(
                 counter_loss += 1
 
             agent.add_memory((state_t, action, reward, state_next, game_over))
-
+-
             # if action or len(agent.memory) < 20 or np.random.rand() < 0.1:
             loss += agent.train_exp_replay(batch_size)
             state_t = state_next
