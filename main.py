@@ -72,7 +72,6 @@ agent, version_num = setup_agent(
     window_size=window_size,
     max_game_length=max_game_length,
     init_start_index=init_start_idx,
-    epochs=epochs,
     name="trader",
     epsilon=1.0,
 )
