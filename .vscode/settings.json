@@ -16,5 +16,21 @@
         "plaintext",
         "python"
     ],
-    // "python.envFile": "${workspaceFolder}/.env"
+    "editor.tokenColorCustomizations": {
+        "textMateRules": [
+            {
+                "scope": "meta.function-call.generic.python",
+                "settings": {
+                    "foreground": "#9fe1ff"
+                }
+            },
+            {
+                "scope": "entity.name.type.class",
+                "settings": {
+                    "foreground": "#4486ff",
+                    "fontStyle": "italic"
+                }
+            },
+        ]
+    }
 }

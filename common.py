@@ -46,11 +46,11 @@ def formatPrice(n):
     return ("-$" if n < 0 else "$") + "{0:.2f}".format(abs(n))
 
 
-def log_state(epoch, loss, epsilon, env: TradingGym, profits_absolut, profits_norm):
+def log_state(epoch, epsilon, env: TradingGym, profits_absolut, profits_norm):
 
     stats = ""
     stats += "Epoch: {:03d},".format(epoch)
-    stats += "Loss: {:.2f},".format(loss)
+    # stats += "Loss: {:.2f},".format(loss)
     stats += "Epsilon: {:.5f},".format(epsilon)
     stats += "IN: {:5},".format(env.initial_action.name)
     stats += "$: {:8.2f},".format(env.entry_price)
@@ -71,7 +71,7 @@ def log_state(epoch, loss, epsilon, env: TradingGym, profits_absolut, profits_no
 file_exits = False
 
 
-def log_state_file(epoch, loss, epsilon, env: TradingGym, profits_absolut, profits_norm, filename):
+def log_state_file(epoch, epsilon, env: TradingGym, profits_absolut, profits_norm, filename):
     global file_exits
 
     if not file_exits:
@@ -79,7 +79,7 @@ def log_state_file(epoch, loss, epsilon, env: TradingGym, profits_absolut, profi
 
     stats = ""
     stats += "{:03d},".format(epoch)
-    stats += "{:.2f},".format(loss)
+    # stats += "{:.2f},".format(loss)
     stats += "{:.5f},".format(epsilon)
     stats += "{:5},".format(env.initial_action.name)
     stats += "{:8.2f},".format(env.entry_price)
@@ -102,7 +102,7 @@ def log_state_file(epoch, loss, epsilon, env: TradingGym, profits_absolut, profi
 def log_state_file_head(filename):
     stats_head = ""
     stats_head += "Epoch,"
-    stats_head += "Loss,"
+    # stats_head += "Loss,"
     stats_head += "Epsilon,"
     stats_head += "IN,"
     stats_head += "IN [$],"

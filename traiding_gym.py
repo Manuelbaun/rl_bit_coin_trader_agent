@@ -23,16 +23,16 @@ class TradingGym(gym.Env):
 
     metadata = {"render.modes": ["human"]}
 
-    def __init__(self, df, window_size, max_game_length, initial_index):
+    def __init__(self, dataframe, window_size=10, max_game_length=1000, initial_index=14400):
         """
-        - `df`: ein DataFrame mit DateTime index!
+        - `dataframe`: ein DataFrame mit DateTime index!
         - `window_size`: Die Zeit-Fenster-Größe,
         - `max_game_length`: die maximale Spiellänge in Minuten, danach wird die GameOver Aktion ausgeführt
         - `initial_index`: Der Index, von wo aus, die Daten aus der CSV geliefert werden
         """
         super(TradingGym, self).__init__()
         # setup the rest
-        self.df = df
+        self.df = dataframe
         # Wichtig: diese Columns werden dazu verwendet, die Resampled DataFrames, aufzufüllen,
         # Falls, sich nicht genug Daten in einem bestimmten Zeitraum, finden lassen..
         # sonst passen die NN Dimensionen nicht aufeinander
@@ -47,18 +47,22 @@ class TradingGym(gym.Env):
         self.window_size = window_size
 
         # 3 Aktionen die man ausführen kann
-        self.action_space = 3
+        self.ACTION_SPACE = 3
         # basierend auf window_size=10 => wird später geändert
-        self.state_space = 0
+        self.OBSERVATION_SPACE = 0
+        # observation soll sein:
+        # die Letzen x Tage, gesampelt als 1. 1-Tag, 2. 1-Stunde, 3. 5-Minute
+        # => x_Tage*(1+24+24*12) = 313 Werte / Tag => 10 ca 3000??
+        # alternative siehe momentan
 
-        self.initial_index = initial_index
-        self.curr_index = self.initial_index
+        self.trading_time_index = initial_index
+        self.curr_index = self.trading_time_index
         self.reward = 0
         self.curr_time = 0
         self.curr_price = 0
         self.profit_loss_norm = 0
         self.profit_loss_absolute = 0
-        self.profit_loss_sum_norm = 0
+        # self.profit_loss_sum_norm = 0
 
         self.max_game_length = max_game_length
 
@@ -69,14 +73,11 @@ class TradingGym(gym.Env):
         self.curr_index += 1
         self._update_state(action)
 
-        return self.get_state(), self.reward, self.game_over
+        return self.state, self.reward, self.game_over
 
-    def get_state(self):
-        return np.array([self.state])
-
-    def get_observation_size(self):
-        self.state_space = self.get_state().shape[1]
-        return self.state_space
+    # kann auch Zeit sein???
+    def set_trading_time_index(self, index):
+        self.trading_time_index = index
 
     def reset(self):
         """Muss am Anfang aufgerufen werden.
@@ -97,7 +98,7 @@ class TradingGym(gym.Env):
         self.game_over = False
 
         # Momentaner Index
-        self.curr_index = self.initial_index
+        self.curr_index = self.trading_time_index
 
         # Start index des Handels
         self.start_index = self.curr_index
@@ -112,12 +113,12 @@ class TradingGym(gym.Env):
         # State stuff
         self.state = []
         self._build_state()
-        self.state_space = self.state.size
+        self.OBSERVATION_SPACE = len(self.state)
 
         # Update state => hold/sit Aktion
         self._update_state(Action.HOLD)
-
-        return 0
+        #  returns current state
+        return np.array(self.state)
 
     def render(self, mode="human", close=False):
         return 0
@@ -139,7 +140,7 @@ class TradingGym(gym.Env):
         self._build_state()
 
         # skip update falls die state länge kleiner ist,da Zeiten fehlen
-        if self.state.size < self.state_space:
+        if self.state.size < self.OBSERVATION_SPACE:
             print(
                 "######################## Lücke in den Zeit Daten",
                 self.state.size,
@@ -153,7 +154,6 @@ class TradingGym(gym.Env):
         self.norm_day_of_week = self.curr_time.dayofweek / 6
 
         # Normiere Epoch
-
         time_delta = self.curr_time - self.start_time
         self.norm_epoch = time_delta.seconds / self.time_unit_in_secs
 
@@ -209,7 +209,6 @@ class TradingGym(gym.Env):
         # Füge den momentanen Kurzverlauf der letzten window size Kurse an
         # open, high, low, close
         last5m, last1h, last1d = self._get_last_window_size_data()
-
         state = np.append(state, np.array(last5m))
         state = np.append(state, np.array(last1h))
         state = np.append(state, np.array(last1d))
@@ -261,22 +260,13 @@ class TradingGym(gym.Env):
 
         return time_frame
 
-    def get_diff_of_last_time_steps(self, t):
-        """ Kalkuliert den Close diff der letzten `t` Zeitschritte"""
-        old = self.curr_index - t
-        row_old = self.df.loc[old, ["Open", "High", "Low", "Close", "Volume"]]
-        row_now = self.df.loc[self.curr_index, ["Open", "High", "Low", "Close", "Volume"]]
-        row_diff = row_now - row_old
-        return row_diff.Open, row_diff.Close, row_diff.High, row_diff.Low, row_diff.Volume
-
     def trade_length(self):
         return self.curr_index - self.start_index
 
     def _calc_current_Profit_Loss(self):
         """Kalkuliert den momentan zu erwartenden Gewinn oder Verlust, 
         wenn Umkehraktion ausgeführt würde in Normiert \n
-        `Handel-Differenz / Handel-Einstiegspreis`
-        """
+        `Handel-Differenz / Handel-Einstiegspreis` """
         pnl_norm = 0
         pnl = 0
         # Bei jetziger Aktion steht der zu erwartende Gewinn/Verlust an:

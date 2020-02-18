@@ -181,3 +181,17 @@ def animate(i):  # update the y values (every 1000ms)
 ani = animation.FuncAnimation(fig, animate, init_func=init, interval=16, blit=True, save_count=10)
 
 plt.show()
+
+
+b = []
+
+len(b)
+
+
+def get_diff_of_last_time_steps(self, t):
+    """ Kalkuliert den Close diff der letzten `t` Zeitschritte"""
+    old = self.curr_index - t
+    row_old = self.df.loc[old, ["Open", "High", "Low", "Close", "Volume"]]
+    row_now = self.df.loc[self.curr_index, ["Open", "High", "Low", "Close", "Volume"]]
+    row_diff = row_now - row_old
+    return row_diff.Open, row_diff.Close, row_diff.High, row_diff.Low, row_diff.Volume

@@ -1,12 +1,16 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
-import tensorflow as tf
-from keras import Model
-from keras.models import load_model
-from keras.layers import Dense, LSTM, concatenate, Input, Flatten, Concatenate
-from keras.optimizers import Adam
+import time
 
-import math
 import numpy as np
+from keras.models import load_model
+from keras.layers import Dense, LSTM, concatenate, Input, Flatten, Concatenate, Activation
+from keras import Sequential
+from keras.optimizers import Adam
+from keras.callbacks import TensorBoard
+from collections import deque
+import datetime
+import random
+from modified_tensorboard import ModifiedTensorBoard
 from enum import Enum
 
 
@@ -16,7 +20,15 @@ class Action(Enum):
     SELL = 2
 
 
-class Agent:
+# Hyperparameter
+MINIBATCH_SIZE = 64
+UPDATE_TARGET_EVERY = 5
+GAMMA = 0.95
+MIN_REPLAY_MEMORY_SIZE = 1_000
+REPLAY_MEMORY_SIZE = 50_000
+
+
+class DQNAgent:
     def __init__(
         self,
         state_space=10,
@@ -24,7 +36,6 @@ class Agent:
         gamma=0.95,
         epsilon=1.0,
         epsilon_min=0.01,
-        max_memory=1000,
         learning_rate=0.001,
         epsilon_decay=0.995,
         name="Trader",
@@ -33,7 +44,6 @@ class Agent:
         `state_space`: Inputs, die das DQN Netzwerk aufnimmt \n
         `action_space`: Die Aktionen, die gewählt werden können, hier nur 3, `buy`, `sell`, `hold/sit`\n
         `gamma`[0-1]: Gamma/Discountfaktor. Verzögern für ein kurz[-> 0]- bzw. langfristigen[-> 1] Erfolg. \n
-        `max_memory`: Das maximum an Erfahrung bevor alte gelöscht werden um platz für neue zu schaffen\n
         `lr`[alpha]: Learning Rate für den Agenten/Neuronale Netz\n
         `epsilon`: [epsilon-greedy]
         """
@@ -43,37 +53,36 @@ class Agent:
         self.epsilon = epsilon
         self.epsilon_min = epsilon_min
         self.epsilon_decay = epsilon_decay
-        self.max_memory = max_memory
         self.lr = learning_rate
+
         # Der memory Replay Memory Buffer
-        self.memory = []
-        self.inventory = []
+        self.replay_memory = deque(maxlen=REPLAY_MEMORY_SIZE)
+        # Zähler für das Updaten des Target-Models
+        self.traget_update_counter = 0
+
         self.name = name
 
-        # Loss, die Genauigkeit des Netzwerks
-        self.loss = 0
-        # ein Paar Settings für interne Zwecke
-        self.total_profit = 0
-
-        # Baue das Model, oder TODO: lade ein bestehendes
+        # Baue das Model
         self.model = self.build_network()
 
+        # Target model für das Doppel DQN, mit diesem .predict!!!
+        self.target_model = self.build_network()
+        self.target_model.set_weights(self.model.get_weights())
+
+        log_dir = f"logs/{self.name}-" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        self.tensorboard = TensorBoard(log_dir=log_dir)
+
     def build_network(self):
-        # input1 : open, close, high, low, volume, date..... x mal window_size
-        input = Input(shape=(self.state_space,), name="state")
 
-        # Hidden Units are defined!
-        hidden_size = self.state_space * 2
-        x = Dense(hidden_size, activation="relu")(input)
-        x = Dense(128, activation="relu")(x)
-        x = Dense(128, activation="relu")(x)
-        output = Dense(self.action_space, activation="relu", name="actions")(x)
-
-        model = Model(inputs=input, outputs=output, name=self.name)
-
-        self.opt = Adam(learning_rate=self.lr)
+        model = Sequential()
+        model.add(Dense(self.state_space * 2, input_shape=(self.state_space,), name="state"))
+        model.add(Activation("relu"))
+        model.add(Dense(128))
+        model.add(Activation("relu"))
+        model.add(Dense(self.action_space, name="actions"),)
         # opt=RMSprop(lr=0.02, rho=0.9, epsilon=None, decay=0),
-        model.compile(optimizer=self.opt, loss="mse")  # metrics=["mse"]
+        self.opt = Adam(lr=self.lr)
+        model.compile(loss="mse", optimizer=self.opt, metrics=["accuracy"])
 
         return model
 
@@ -85,16 +94,10 @@ class Agent:
     def save_checkpoint(self, path):
         self.model.save(path)
 
-    def reset_for_next_train(self):
-        self.total_profit = 0
-        self.memory = []
-        self.loss = 0
-
-    def decay_epsilon(self, epoch):
+    def decay_epsilon(self):
         """ 
         #### Epsilon
-        reduziere das Epsilon pro Epoche
-        evtl. eine andere Formel
+        reduziere das Epsilon e-Greedy, evtl. eine andere Formel
         """
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
@@ -113,6 +116,8 @@ class Agent:
         if state.size < self.state_space:
             return action
 
+        state = np.array(state).reshape(-1, *state.shape)
+
         # Zufällige Aktion
         if np.random.rand() <= self.epsilon:
             a = np.random.choice(self.action_space)
@@ -128,46 +133,74 @@ class Agent:
 
         return action
 
-    # TODO: Löschen könnte zu teuer sein, evtl. wären zwei Zähler besser
-    def add_memory(self, state):
-        """state = [state_t, action_t, reward_t, state_t+1, game_over?]"""
-        self.memory.append(state)
-        # Lösche alte Erfahrungen
-        if len(self.memory) > self.max_memory:
-            del self.memory[0]
+    def add_memory(self, transition):
+        """transition = (state, action, reward, state_next, game_over)"""
+        self.replay_memory.append(transition)
 
-    def train_exp_replay(self, batch_size=10):
-        """ Trainiere anhand der gemachten Erfahrungen
-            Wird auch als Experience Replay bezeichnet """
+    def get_Action(self, state):
+        state_ = np.array(state).reshape(-1, *state.shape)  #  TODO normalisieren
+        return np.argmax(self.model.predict(state_)[0])
 
-        len_memory = len(self.memory)
-        length = min(len_memory, batch_size)
+    def train(self, terminal_state, step):
+        """ 
+        Trainiere anhand der gemachten Erfahrungen. Wird auch als Experience Replay bezeichnet. 
+        Wird erst angewandt, wenn mindestens MIN_REPLAY_MEMORY_SIZE erreicht ist
+        """
 
-        # define size
-        states = np.zeros((length, self.state_space))
-        targets = np.zeros((length, self.action_space))
+        if len(self.replay_memory) < MIN_REPLAY_MEMORY_SIZE:
+            return
 
-        # Wähle die letzten batch_size Erinnerungen aus
-        memory_idx = range(len_memory - length, len_memory)
+        # Wählt zufällig Erinnerungen aus.
+        minibatch = random.sample(self.replay_memory, MINIBATCH_SIZE)
 
-        for i, idx in enumerate(memory_idx):
-            state_t, action_t, reward_t, state_t_next, game_over = self.memory[idx]
+        current_states = np.array(
+            [transition[0] for transition in minibatch]
+        )  # TODO: normalisieren
+        current_qs_list = self.model.predict(current_states)
 
-            states[i] = state_t
-            # TODO: Was ist das hier?
-            # There should be no target values for actions not taken.
-            # Thou shalt not correct actions not taken #deepNN
-            # TODO: Setze zu null, die anderen?
-            targets[i] = self.model.predict(state_t)[0]
+        new_current_states = np.array(
+            [transition[3] for transition in minibatch]
+        )  # TODO: normalisieren
 
-            # if game_over is True
-            if game_over:
-                targets[i, action_t.value] = reward_t
+        # Wende das Dopple DQN an!
+        # TODO: check: predict_batch?
+        future_qs_list = self.target_model.predict(new_current_states)
+
+        # X und Y
+        X_states = []
+        Y_target_qs = []
+
+        for index, (state, action, reward, state_t_next, done) in enumerate(minibatch):
+            # hier kommt die Formel für das Q-Leaning zum Einsatz
+            if not done:
+                Q_sa_max = np.max(future_qs_list[index])
+                Q_sa_new = reward + self.gamma * Q_sa_max
             else:
-                # Q-value Ermittlung
-                # reward_t + gamma * max' Q(s', a')
-                Q_sa_max = np.max(self.model.predict(state_t_next)[0])
-                Q_value_target = reward_t + self.gamma * Q_sa_max
-                targets[i, action_t.value] = Q_value_target
+                Q_sa_new = reward
 
-        return self.model.train_on_batch(states, targets)
+            current_qs = current_qs_list[index]
+            current_qs[action.value] = Q_sa_new
+            # targets[i, action_t.value] = reward_t
+
+            X_states.append(state)
+            Y_target_qs.append(current_qs)
+
+        loss = self.model.fit(
+            np.array(X_states),  # TODO: normalisieren
+            np.array(Y_target_qs),
+            batch_size=MINIBATCH_SIZE,
+            verbose=0,
+            shuffle=False,
+            # Fit das Model, wenn terminal state existiert, sonst nicht!
+            # callbacks=[self.tensorboard] if terminal_state else None,
+        )
+
+        # Überprüfen, ob das Target_model mit den neuen Werten aktualisiert werden soll
+        if terminal_state:
+            self.traget_update_counter += 1
+
+        if self.traget_update_counter > UPDATE_TARGET_EVERY:
+            self.target_model.set_weights(self.model.get_weights())
+            self.traget_update_counter = 0
+
+        return loss
