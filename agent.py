@@ -152,7 +152,7 @@ class Agent:
         for i, idx in enumerate(memory_idx):
             state, action, reward, state_next, game_over = self.memory[idx]
 
-            inputs[i] = state
+            states[i] = state
             # TODO: Was ist das hier?
             # There should be no target values for actions not taken.
             # Thou shalt not correct actions not taken #deepNN
