@@ -2,20 +2,12 @@ import gym
 from gym import spaces
 import numpy as np
 from datetime import datetime, timedelta
-
-from enum import Enum
-
-
-class Action(Enum):
-    HOLD = 0
-    BUY = 1
-    SELL = 2
-
+from agent import Action
 
 # https://towardsdatascience.com/creating-a-custom-openai-gym-environment-for-stock-trading-be532be3910e
 
 
-class Custom_Gym(gym.Env):
+class TradingGym(gym.Env):
     """Custom Environment that follows gym interface\n
     
     Ein Spielverlauf ist die Auswahl einer Aktion, kaufen oder verkaufen
@@ -38,7 +30,7 @@ class Custom_Gym(gym.Env):
         - `max_game_length`: die maximale Spiellänge in Minuten, danach wird die GameOver Aktion ausgeführt
         - `initial_index`: Der Index, von wo aus, die Daten aus der CSV geliefert werden
         """
-        super(Custom_Gym, self).__init__()
+        super(TradingGym, self).__init__()
         # setup the rest
         self.df = df
 
@@ -72,13 +64,10 @@ class Custom_Gym(gym.Env):
         0: hold, 1: buy,  2: sell\n
         Execute one time step within the environment"""
         self.curr_index += 1
-        self.step_counter += 1
+
         self._update_state(action)
 
         return self.observe(), self.reward, self.game_over
-
-    def max_game_length_reached(self):
-        return self.step_counter >= self.max_game_length
 
     def observe(self):
         return np.array([self.state])
@@ -90,7 +79,6 @@ class Custom_Gym(gym.Env):
         # Die länge einer Zeiteinheit in Sekunden
         self.time_unit_in_secs = (self.df.index[1] - self.df.index[0]).seconds
 
-        self.step_counter = 0
         # Die Zeit in Minuten normiert zwischen 0-1
         self.norm_time_of_day = 0
         # Tag in der Woche Normiert zwischen 0-1
@@ -126,6 +114,9 @@ class Custom_Gym(gym.Env):
 
     def render(self, mode="human", close=False):
         return 0
+
+    def trade_max_iteration_reached(self):
+        return self.trade_length() >= self.max_game_length
 
     def _update_state(self, action: Action):
         """Update den momentanen State des Gyms """

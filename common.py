@@ -1,13 +1,22 @@
-import numpy as np
-import math
 import os
 import re
-
-
 import pandas as pd
+
 from pandas import DataFrame
-from pandas.core.common import flatten
-from custom_gym import Custom_Gym, Action
+from traiding_gym import TradingGym
+
+
+def get_bit_coin_data(file_path):
+    df = pd.read_csv(file_path, header=0, encoding="ascii", skipinitialspace=True)
+    df.info()
+    df["Date"] = pd.to_datetime(df["Date"])
+
+    # created an extra index column => why?
+    df = df.sort_values(by="Date", ascending=True).reset_index()
+    df.set_index("Date", inplace=True)
+    df = df.drop(["Unix Timestamp", "Symbol", "index"], axis=1)
+
+    return df
 
 
 def get_lastest_model_path(path_to_folder):
@@ -32,42 +41,7 @@ def formatPrice(n):
     return ("-$" if n < 0 else "$") + "{0:.2f}".format(abs(n))
 
 
-# returns the sigmoid
-def sigmoid(x):
-    return 1 / (1 + math.exp(-x))
-
-
-# returns an n-day state representation ending at time t
-def getState(data, t, n):
-    d = t - n + 1
-    a = -d * [data[0]] + data[0 : t + 1]  # pad with t0
-    b = data[d : t + 1]
-
-    block = b if d >= 0 else a
-    res = []
-    for i in range(n - 1):
-        diff = block[i + 1] - block[i]
-        val = sigmoid(diff)
-        res.append(val)
-
-    return np.array([res])
-
-
-#  TODO: Fix den Fall wenn time_step < window_size is!!!
-def getState2(df: DataFrame, time_step, window_size_p_1):
-    # print("Get State")
-    d = time_step - window_size_p_1 + 1
-    # a1 = -d * df.values[0:1]  #  pad with t0
-    # a2 = df.values[0 : time_step + 1]
-    # a = a1 + a2
-    block = df.values[d : time_step + 1]
-    # block = b if d >= 0 else a
-
-    res = np.reshape(block, (1, block.shape[0] * block.shape[1]))
-    return res
-
-
-def log_state(epoch, loss, epsilon, env: Custom_Gym, profits_absolut, profits_norm, print_):
+def log_state(epoch, loss, epsilon, env: TradingGym, profits_absolut, profits_norm):
 
     stats = ""
     stats += "Epoch: {:03d},".format(epoch)
@@ -86,14 +60,13 @@ def log_state(epoch, loss, epsilon, env: Custom_Gym, profits_absolut, profits_no
     stats += "Start: {},".format(env.start_time)
     stats += "End: {},".format(env.curr_time)
 
-    if print_:
-        print(stats)
+    print(stats)
 
 
 file_exits = False
 
 
-def log_state_file(epoch, loss, epsilon, env: Custom_Gym, profits_absolut, profits_norm, filename):
+def log_state_file(epoch, loss, epsilon, env: TradingGym, profits_absolut, profits_norm, filename):
     global file_exits
 
     if not file_exits:

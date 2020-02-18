@@ -7,8 +7,13 @@ from keras.optimizers import Adam
 
 import math
 import numpy as np
+from enum import Enum
 
-from custom_gym import Action
+
+class Action(Enum):
+    HOLD = 0
+    BUY = 1
+    SELL = 2
 
 
 class Agent:
@@ -72,8 +77,6 @@ class Agent:
         # opt=RMSprop(lr=0.02, rho=0.9, epsilon=None, decay=0),
         model.compile(optimizer=self.opt, loss="mse")  # metrics=["mse"]
 
-        tf.keras.utils.plot_model(model, self.name + ".png", show_shapes=True)
-        model.summary()
         return model
 
     def load_checkpoint(self, path):
