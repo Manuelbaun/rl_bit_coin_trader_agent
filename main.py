@@ -59,11 +59,16 @@ def setup_agent(
 df = get_bit_coin_data(data_dir / "gemini_BTCUSD_2018_1min.csv")
 
 # Training stuff
-window_size = 10
-init_start_idx = 10 * 24 * 60  # in Minuten
+window_size = 15  # 10 für trader
+
+one_day = 60 * 24
+init_start_idx = window_size * one_day  # in Minuten
+
 batch_size = 64
 epochs = 10000
-max_game_length = 1000
+
+max_game_length = 3000
+traderName = "trader_win_15"
 
 
 ## Setup den Agenten, mit den richtigen Dimensionen etc.
@@ -72,7 +77,7 @@ agent, version_num = setup_agent(
     window_size=window_size,
     max_game_length=max_game_length,
     init_start_index=init_start_idx,
-    name="trader",
+    name=traderName,
     epsilon=1.0,
 )
 

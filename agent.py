@@ -33,9 +33,10 @@ class Agent:
         """
         `state_space`: Inputs, die das DQN Netzwerk aufnimmt \n
         `action_space`: Die Aktionen, die gewählt werden können, hier nur 3, `buy`, `sell`, `hold/sit`\n
-        `gamma`: Verzögern für ein kurz- bzw. langfristigen Erfolg\n
+        `gamma`[0-1]: Gamma/Discountfaktor. Verzögern für ein kurz[-> 0]- bzw. langfristigen[-> 1] Erfolg. \n
         `max_memory`: Das maximum an Erfahrung bevor alte gelöscht werden um platz für neue zu schaffen\n
-        `lr`: Learning Rate für den Agenten/Neuronale Netz\n
+        `lr`[alpha]: Learning Rate für den Agenten/Neuronale Netz\n
+        `epsilon`: [epsilon-greedy]
         """
         self.state_space = state_space
         self.action_space = action_space
@@ -166,7 +167,8 @@ class Agent:
             if game_over:
                 targets[i, action.value] = reward
             else:
-                # reward_t + gamma * max_a' Q(s', a')
+                # Teil der Q-Matrix
+                # reward_t + gamma * max' Q(s', a')
                 Q_sa_max = np.max(self.model.predict(state_next)[0])
                 targets[i, action.value] = reward + self.gamma * Q_sa_max
 

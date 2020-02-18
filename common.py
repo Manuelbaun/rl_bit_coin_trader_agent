@@ -26,12 +26,17 @@ def get_lastest_model_path(path_to_folder):
     version_num = 0
 
     regex = re.compile("ep(\d+)")
-    with os.scandir(path_to_folder) as it:
-        for entry in it:
-            z = re.search(regex, entry.name)
-            if z and (int(z.group(1)) >= version_num):
-                version_num = int(z.group(1))
-                file = entry.path
+    try:
+
+        with os.scandir(path_to_folder) as it:
+            for entry in it:
+                z = re.search(regex, entry.name)
+                if z and (int(z.group(1)) >= version_num):
+                    version_num = int(z.group(1))
+                    file = entry.path
+    except:
+        print("Kein Model gefunden, ein neues wird erstellt")
+        return "", 0
 
     return file, version_num
 

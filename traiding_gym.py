@@ -33,7 +33,10 @@ class TradingGym(gym.Env):
         super(TradingGym, self).__init__()
         # setup the rest
         self.df = df
-
+        # Wichtig: diese Columns werden dazu verwendet, die Resampled DataFrames, aufzufüllen,
+        # Falls, sich nicht genug Daten in einem bestimmten Zeitraum, finden lassen..
+        # sonst passen die NN Dimensionen nicht aufeinander
+        self.columns = np.array(["Open", "Close", "High", "Low"])
         # 5 Min resample
         self.df_5m = self.df["Close"].resample("5T", label="right", closed="right").ohlc().dropna()
         # 1 Std. resample
@@ -78,7 +81,6 @@ class TradingGym(gym.Env):
 
         # Die länge einer Zeiteinheit in Sekunden
         self.time_unit_in_secs = (self.df.index[1] - self.df.index[0]).seconds
-
         # Die Zeit in Minuten normiert zwischen 0-1
         self.norm_time_of_day = 0
         # Tag in der Woche Normiert zwischen 0-1
@@ -96,7 +98,6 @@ class TradingGym(gym.Env):
 
         # Start index des Handels
         self.start_index = self.curr_index
-        #
         self.curr_time = self.df.index[self.curr_index]
         self.start_time = self.df.index[self.start_index]
         # State stuff
@@ -109,7 +110,6 @@ class TradingGym(gym.Env):
         # Update state => hold/sit Aktion
         self._update_state(Action.HOLD)
 
-        #  TODO: rest fertig machen
         return 0
 
     def render(self, mode="human", close=False):
@@ -207,13 +207,6 @@ class TradingGym(gym.Env):
         state = np.append(state, np.array(last1h))
         state = np.append(state, np.array(last1d))
 
-        # # füge die Differenz der letzten 5 min an
-        # state = np.append(state, self.get_diff_of_last_time_steps(5))
-        # # füge die Differenz der letzten 60 min an
-        # state = np.append(state, self.get_diff_of_last_time_steps(60))
-        # # füge die Differenz der letzten 24 Std an
-        # state = np.append(state, self.get_diff_of_last_time_steps(60 * 24))
-
         state = np.append(state, self.initial_action.value)
         # füge die Summe bisheriger Profit/Loss zum state?
         # als -1, 0, oder 1
@@ -226,8 +219,7 @@ class TradingGym(gym.Env):
         # füge den normierten Tag der Woche an
         state = np.append(state, self.norm_day_of_week)
 
-        # normiere den state!
-        # Muss das so sein
+        # normiere den state! Muss das so sein
         self.state = (np.array(state) - np.mean(state)) / np.std(state)
 
     def _get_last_window_size_data(self):
@@ -241,44 +233,26 @@ class TradingGym(gym.Env):
         last1h = self.df_1h[d1h : self.curr_time][-self.window_size :]
         last1d = self.df_1d[d1d : self.curr_time][-self.window_size :]
 
-        t = np.array(last5m)
-        t2 = np.array(last1h)
-        t3 = np.array(last1d)
-
-        # Füge padding hinzu, mit dem ältesten Wert
-        if t.size != self.window_size * 4:
-            if t.size > 0:
-                frame = t[0]
-                for i in range(t.shape[0], 10):
-                    t = np.insert(t, 0, frame)
-            else:
-                frame = self.df.loc[self.curr_time, ["Open", "Close", "High", "Low"]]
-                for i in range(0, 10):
-                    t = np.insert(t, 0, frame)
-
-        # Füge padding hinzu, mit dem ältesten Wert
-        if t2.size != self.window_size * 4:
-            if t2.size > 0:
-                frame = t2[0]
-                for i in range(t2.shape[0], 10):
-                    t2 = np.insert(t2, 0, frame)
-            else:
-                frame = self.df.loc[self.curr_time, ["Open", "Close", "High", "Low"]]
-                for i in range(0, 10):
-                    t2 = np.insert(t2, 0, frame)
-
-        # Füge padding hinzu, mit dem ältesten Wert
-        if t3.size != self.window_size * 4:
-            if t3.size > 0:
-                frame = t3[0]
-                for i in range(t3.shape[0], 10):
-                    t3 = np.insert(t3, 0, frame)
-            else:
-                frame = self.df.loc[self.curr_time, ["Open", "Close", "High", "Low"]]
-                for i in range(0, 10):
-                    t3 = np.insert(t3, 0, frame)
+        # Hier werden die TimeFrames aufgefüllt
+        t = self.fill_up_time_frames_if_not_enough_data(np.array(last5m))
+        t2 = self.fill_up_time_frames_if_not_enough_data(np.array(last1h))
+        t3 = self.fill_up_time_frames_if_not_enough_data(np.array(last1d))
 
         return t, t2, t3
+
+    def fill_up_time_frames_if_not_enough_data(self, time_frame):
+        # Füge padding hinzu, mit dem ältesten Wert
+        if time_frame.size != self.window_size * self.columns.size:
+            if time_frame.size > 0:
+                frame = time_frame[0]
+                for i in range(time_frame.shape[0], self.window_size):
+                    time_frame = np.insert(time_frame, 0, frame)
+            else:
+                frame = self.df.loc[self.curr_time, self.columns]
+                for i in range(0, self.window_size):
+                    time_frame = np.insert(time_frame, 0, frame)
+
+        return time_frame
 
     def get_diff_of_last_time_steps(self, t):
         """ Kalkuliert den Close diff der letzten `t` Zeitschritte"""
