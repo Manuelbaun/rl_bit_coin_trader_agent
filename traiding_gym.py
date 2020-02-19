@@ -95,7 +95,7 @@ class TradingGym(gym.Env):
         # Preis, zu dem entweder gekauft, oder verkauft wurde
         self.entry_price = 0
 
-        self.done = False
+        self.game_over = False
         self.reward = 0
 
         # Momentaner Index
@@ -167,7 +167,7 @@ class TradingGym(gym.Env):
             if self.initial_action == Action.SELL:
                 # Wurde die Aktion BUY ausgewählt, muss vorher verkauft
                 # worden sein. Nun wird zurückgekauft => Game_over
-                self.done = True
+                self.game_over = True
                 self._get_reward()
 
             # Buy Stock
@@ -187,7 +187,7 @@ class TradingGym(gym.Env):
             if self.initial_action == Action.BUY:
                 # Wurde die Aktion SELL ausgewählt, muss vorher eingekauft
                 # worden sein. Nun  wird verkauft => Game_over
-                self.done = True
+                self.game_over = True
                 self._get_reward()
 
             # Sell Stock
@@ -307,14 +307,14 @@ class TradingGym(gym.Env):
             TradeKosten "" einrechnen
         """
 
-        if done:
+        if self.game_over:
             self.reward = self.profit_loss_norm * 100
 
             return self.reward
         else:
             return self.reward
 
-        self.reward = np.sign(self.profit_loss_norm) if self.done else self.reward
+        # self.reward = np.sign(self.profit_loss_norm) if self.game_over else self.reward
 
         # print(self.reward + self.profit_loss_norm*100)
         # Lasse den profit_Loss mit einfließen
