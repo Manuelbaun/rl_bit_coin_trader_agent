@@ -95,7 +95,7 @@ class TradingGym(gym.Env):
         # Preis, zu dem entweder gekauft, oder verkauft wurde
         self.entry_price = 0
 
-        self.game_over = False
+        self.done = False
         self.reward = 0
 
         # Momentaner Index
@@ -112,8 +112,7 @@ class TradingGym(gym.Env):
         self.game_over_action = Action.HOLD
 
         # State stuff
-        self.state = []
-        self._build_state()
+        self.state = self._build_state()
         self.OBSERVATION_SPACE = len(self.state)
 
         # Update state => hold/sit Aktion
@@ -138,7 +137,7 @@ class TradingGym(gym.Env):
         self.profit_loss_norm = pnl_norm
         self.profit_loss_absolute = pnl
 
-        self._build_state()
+        self.state = self._build_state()
 
         # skip update falls die state länge kleiner ist,da Zeiten fehlen
         if self.state.size < self.OBSERVATION_SPACE:
@@ -168,7 +167,7 @@ class TradingGym(gym.Env):
             if self.initial_action == Action.SELL:
                 # Wurde die Aktion BUY ausgewählt, muss vorher verkauft
                 # worden sein. Nun wird zurückgekauft => Game_over
-                self.game_over = True
+                self.done = True
                 self._get_reward()
 
             # Buy Stock
@@ -188,7 +187,7 @@ class TradingGym(gym.Env):
             if self.initial_action == Action.BUY:
                 # Wurde die Aktion SELL ausgewählt, muss vorher eingekauft
                 # worden sein. Nun  wird verkauft => Game_over
-                self.game_over = True
+                self.done = True
                 self._get_reward()
 
             # Sell Stock
@@ -226,8 +225,12 @@ class TradingGym(gym.Env):
         # füge den normierten Tag der Woche an
         state = np.append(state, self.norm_day_of_week)
 
-        # normiere den state! Muss das so sein
-        self.state = (np.array(state) - np.mean(state)) / np.std(state)
+        # Normierung:
+        # Die Normierung läuft über alle Zahlen.
+        # TODO: Berichtigen der Z-Transformation! "Studentisierung" siehe: https://de.wikipedia.org/wiki/Studentisierung
+        # Separiere die verschiedenen Eingänge:
+        # - Kursstand, Zeit, usw.
+        return (np.array(state) - np.mean(state)) / np.std(state)
 
     def _get_last_window_size_data(self):
 
@@ -285,17 +288,36 @@ class TradingGym(gym.Env):
 
     def _get_reward(self):
         """Reward wird am Ende einer Spielsession zurückgegeben
+        Variante 1:
+
             - Gewinn      : 1
             - Nichts      : 0 
             - Verlust    : -1
+
+        Variante 2:
+            Prozent des Gewinns/Verlust, vom Eintrittspreis (s. self._calc_current_Profit_Loss())
+            ist der Reward
+            So erwirtschaftete Gewinn/Verlust in die Berechnung mit ein
+            je mehr Gewinn, desto höher der Reward
+            je mehr Verlust, desto höher die Bestrafung
+
+        Idee: 
+            Wenn Gewinn/Verlusst =0 ist, und die Laufzeit lang ist, => auch leichte Bestrafung..
+
+            TradeKosten "" einrechnen
         """
 
-        self.reward = np.sign(self.profit_loss_norm) if self.game_over else self.reward
+        if done:
+            self.reward = self.profit_loss_norm * 100
+
+            return self.reward
+        else:
+            return self.reward
+
+        self.reward = np.sign(self.profit_loss_norm) if self.done else self.reward
+
         # print(self.reward + self.profit_loss_norm*100)
         # Lasse den profit_Loss mit einfließen
-        # self.reward += self.profit_loss_norm * 100
-        return self.reward
-
-    def _assemble_state(self):
-        return 0
+        # self.reward += self.profit_loss_norm
+        # return self.reward
 
