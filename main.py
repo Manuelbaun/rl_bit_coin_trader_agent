@@ -33,6 +33,8 @@ df19 = get_bit_coin_data(data_gamini / "gemini_BTCUSD_2019_1min.csv")
 
 df = pd.concat([df15, df16, df17, df18, df19])
 
+print(len(df))
+
 # Training stuff
 window_size = 10  # 10 für trader
 one_day = 60 * 24  # In Minuten
@@ -42,7 +44,7 @@ batch_size = 32
 epochs = 30000
 
 max_game_length = 1000
-traderName = "trader_10_full"
+traderName = "trader_10_full_pass2"
 
 
 ## Setup den Agenten, mit den richtigen Dimensionen etc.

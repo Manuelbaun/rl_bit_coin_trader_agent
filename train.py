@@ -14,11 +14,14 @@ def train(env: TradingGym, agent: DQNAgent, epochs, model_path, trader_path):
     profit_bucket_norm = []
     length_bucket = []
 
+    profit_sum = 0
     counter_win = 0
     counter_loss = 0
+    counter_pass = 0
     last_duration_in_minutes = 0
 
     start_trading_time_index = env.trading_time_index
+    trading_max_index = len(env.df)
 
     for epoch in tqdm(range(1, epochs + 1), ascii=True, unit="epoch"):
         agent.tensorboard.step = epoch
@@ -26,6 +29,22 @@ def train(env: TradingGym, agent: DQNAgent, epochs, model_path, trader_path):
         # Setze nächsten Startpunkt  => Könnte auch Zufällig sein ?
         start_trading_time_index += last_duration_in_minutes
         env.set_trading_time_index(start_trading_time_index)
+
+        if start_trading_time_index >= trading_max_index - 1:
+            print("End of Trainigsdata reached")
+            log_and_save(
+                agent,
+                env,
+                epoch,
+                counter_loss,
+                counter_win,
+                counter_pass,
+                profit_sum,
+                sum(profit_bucket),
+                sum(length_bucket),
+                path_save=model_path / f"ep{epoch}",
+            )
+            break
 
         epoch_reward = 0
         step = 1
@@ -40,17 +59,20 @@ def train(env: TradingGym, agent: DQNAgent, epochs, model_path, trader_path):
             action = agent.get_action(current_state, env.initial_action)
 
             # Erzwinge ein Runde zu beenden, da max_game_length erreicht wurde
-            if env.trade_max_iteration_reached():
+            if env.trade_max_iteration_reached() or env.curr_index >= trading_max_index - 1:
                 action = env.game_over_action
 
             # Zeige Environment State und erhalte die Response
             # Done = terminal_state
             state_next, reward, done = env.step(Action(action))
 
-            if reward > 0:
-                counter_win += 1
-            elif reward < 0:
-                counter_loss += 1
+            if done:
+                if reward > 0:
+                    counter_win += 1
+                elif reward < 0:
+                    counter_loss += 1
+                else:
+                    counter_pass += 1
 
             # epoch_reward += reward
 
@@ -83,30 +105,59 @@ def train(env: TradingGym, agent: DQNAgent, epochs, model_path, trader_path):
         # Speicher
         # TODO: tensorboard finish
         if epoch % 20 == 0:
-            # agent.tensorboard.update_stats(
-            #     profit=profit_sum,
-            #     profit_norm=profit_sum_norm,
-            #     # reward_min=min_reward,
-            #     # reward_max=max_reward,
-            #     epsilon=agent.epsilon,
-            # )
-
-            st = f"Epoch: {(epoch-20):5}-{epoch:5} | "
-            # st = f"Steps: {(step:5} | "
-            st += f"Duration: {sum(length_bucket):8} | "
-            st += f"Wins: {counter_win:4} | "
-            st += f"Loss: {counter_loss:4} | "
-            st += f"PNL: $ {sum(profit_bucket):8.3f} | "
-            st += f"Kapital: $ {profit_sum:12.3f} | "
-            st += f"Date: {env.curr_time}"
-            print(st)
-
+            log_and_save(
+                agent,
+                env,
+                epoch,
+                counter_loss,
+                counter_win,
+                counter_pass,
+                profit_sum,
+                sum(profit_bucket),
+                sum(length_bucket),
+                path_save=model_path / f"ep{epoch}",
+            )
             profit_bucket = []
             profit_bucket_norm = []
             length_bucket = []
             counter_win = 0
             counter_loss = 0
-            # log_state(epoch, agent.epsilon, env, profit_sum, profit_sum_norm)
+            counter_pass = 0
 
-            # Speichere das momentane Model
-            agent.save_checkpoint(path=model_path / f"ep{epoch}")
+
+def log_and_save(
+    agent,
+    env,
+    epoch,
+    counter_loss,
+    counter_win,
+    counter_pass,
+    profit_total,
+    profit_sum_since_last,
+    length_sum,
+    path_save,
+):
+    # agent.tensorboard.update_stats(
+    #     profit=profit_sum,
+    #     profit_norm=profit_sum_norm,
+    #     # reward_min=min_reward,
+    #     # reward_max=max_reward,
+    #     epsilon=agent.epsilon,
+    # )
+
+    st = f"\nEpoch: {(epoch-20):5}-{epoch:5} | "
+    # st = f"Steps: {(step:5} | "
+    st += f"Duration: {length_sum:8} | "
+    st += f"Wins: {counter_win:4} | "
+    st += f"Loss: {counter_loss:4} | "
+    st += f"Pass: {counter_pass:4} | "
+    st += f"PNL: $ {profit_sum_since_last:8.2f} | "
+    st += f"Kapital: $ {profit_total:12.2f} | "
+    st += f"Date: {env.curr_time}"
+    print(st)
+
+    # log_state(epoch, agent.epsilon, env, profit_sum, profit_sum_norm)
+
+    # Speichere das momentane Model
+    agent.save_checkpoint(path_save)
+
