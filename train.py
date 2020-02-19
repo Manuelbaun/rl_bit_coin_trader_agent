@@ -5,22 +5,15 @@ from common import log_state_file, log_state, get_lastest_model_path, get_bit_co
 from agent import DQNAgent, Action
 
 
-def train(env: TradingGym, agent: DQNAgent, epochs, trade_path, models_path):
-
-    # setup path to store the model
-    model_path = models_path / agent.name
-    trader_path = trade_path / (agent.name + ".csv")
-
-    try:
-        access_rights = 0o755
-        os.mkdir(model_path, access_rights)
-    except OSError:
-        print("Creation of the directory %s failed" % model_path)
-    else:
-        print("Successfully created the directory %s" % model_path)
+def train(env: TradingGym, agent: DQNAgent, epochs, model_path, trader_path):
 
     profits_absolute = []
     profits_norm = []
+    # pro Plot ausgabe
+    profit_bucket = []
+    profit_bucket_norm = []
+    length_bucket = []
+
     counter_win = 0
     counter_loss = 0
     last_duration_in_minutes = 0
@@ -54,7 +47,12 @@ def train(env: TradingGym, agent: DQNAgent, epochs, trade_path, models_path):
             # Done = terminal_state
             state_next, reward, done = env.step(Action(action))
 
-            epoch_reward += reward
+            if reward > 0:
+                counter_win += 1
+            elif reward < 0:
+                counter_loss += 1
+
+            # epoch_reward += reward
 
             agent.add_memory((current_state, action, reward, state_next, done))
             agent.train(done, step)
@@ -68,21 +66,23 @@ def train(env: TradingGym, agent: DQNAgent, epochs, trade_path, models_path):
 
         # Now Game is over
         profits_absolute.append(env.profit_loss_absolute)
+        profit_bucket.append(env.profit_loss_absolute)
         profits_norm.append(env.profit_loss_norm)
+        profit_bucket_norm.append(env.profit_loss_norm)
         # ermittle die Momentane Summe
         profit_sum = sum(profits_absolute)
         profit_sum_norm = sum(profits_norm)
 
         # setze Profit_sum_norm in der env.
         # env.profit_loss_sum_norm = profit_sum_norm
-        last_iteration = env.trade_length()
-
+        last_duration_in_minutes = env.trade_length()
+        length_bucket.append(last_duration_in_minutes)
         # Log to File
         log_state_file(epoch, agent.epsilon, env, profit_sum, profit_sum_norm, trader_path)
 
         # Speicher
         # TODO: tensorboard finish
-        if epoch % 10 == 0:
+        if epoch % 20 == 0:
             # agent.tensorboard.update_stats(
             #     profit=profit_sum,
             #     profit_norm=profit_sum_norm,
@@ -90,6 +90,23 @@ def train(env: TradingGym, agent: DQNAgent, epochs, trade_path, models_path):
             #     # reward_max=max_reward,
             #     epsilon=agent.epsilon,
             # )
-            log_state(epoch, agent.epsilon, env, profit_sum, profit_sum_norm)
+
+            st = f"Epoch: {(epoch-20):5}-{epoch:5} | "
+            # st = f"Steps: {(step:5} | "
+            st += f"Duration: {sum(length_bucket):8} | "
+            st += f"Wins: {counter_win:4} | "
+            st += f"Loss: {counter_loss:4} | "
+            st += f"PNL: $ {sum(profit_bucket):8.3f} | "
+            st += f"Kapital: $ {profit_sum:12.3f} | "
+            st += f"Date: {env.curr_time}"
+            print(st)
+
+            profit_bucket = []
+            profit_bucket_norm = []
+            length_bucket = []
+            counter_win = 0
+            counter_loss = 0
+            # log_state(epoch, agent.epsilon, env, profit_sum, profit_sum_norm)
+
             # Speichere das momentane Model
             agent.save_checkpoint(path=model_path / f"ep{epoch}")

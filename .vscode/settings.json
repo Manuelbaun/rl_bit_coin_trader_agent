@@ -32,5 +32,8 @@
                 }
             },
         ]
+    },
+    "[csv]": {
+        "editor.wordWrap": "off"
     }
 }

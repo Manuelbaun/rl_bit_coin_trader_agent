@@ -96,6 +96,7 @@ class TradingGym(gym.Env):
         self.entry_price = 0
 
         self.game_over = False
+        self.reward = 0
 
         # Momentaner Index
         self.curr_index = self.trading_time_index
@@ -271,15 +272,15 @@ class TradingGym(gym.Env):
         pnl = 0
         # Bei jetziger Aktion steht der zu erwartende Gewinn/Verlust an:
         if self.initial_action == Action.BUY:  # Bei Verkauf
-            pnl = self.entry_price - self.curr_price
+            pnl = -self.entry_price + self.curr_price
             pnl_norm = pnl / self.entry_price
         elif self.initial_action == Action.SELL:  # Bei Zurückkauf
-            pnl = -self.entry_price + self.curr_price
+            pnl = self.entry_price - self.curr_price
             pnl_norm = pnl / self.entry_price
         else:
             # Vorher wurde weder eingekauft noch verkauft => kein Gewinn/Verlust
             pnl = 0
-
+        # print(self.initial_action, self.entry_price, self.curr_price, pnl)
         return pnl_norm, pnl
 
     def _get_reward(self):
