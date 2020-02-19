@@ -302,9 +302,9 @@ class TradingGym(gym.Env):
             je mehr Verlust, desto höher die Bestrafung
 
         Idee: 
-            Wenn Gewinn/Verlusst =0 ist, und die Laufzeit lang ist, => auch leichte Bestrafung..
-
-            TradeKosten "" einrechnen
+            - Wenn Gewinn/Verlust = 0 ist  => Laufzeit lang, dann leichte Bestrafung.
+            - TradeKosten "" einrechnen
+            - Verlust vom erwirtschaften gesamt-Kapital einfließen lassen
         """
 
         if self.game_over:

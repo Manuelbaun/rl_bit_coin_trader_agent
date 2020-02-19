@@ -13,6 +13,7 @@ def train(env: TradingGym, agent: DQNAgent, epochs, model_path, trader_path):
     profit_bucket = []
     profit_bucket_norm = []
     length_bucket = []
+    reward_bucket = []
 
     profit_sum = 0
     counter_win = 0
@@ -40,6 +41,7 @@ def train(env: TradingGym, agent: DQNAgent, epochs, model_path, trader_path):
                 counter_win,
                 counter_pass,
                 profit_sum,
+                sum(reward_bucket),
                 sum(profit_bucket),
                 sum(length_bucket),
                 path_save=model_path / f"ep{epoch}",
@@ -73,8 +75,8 @@ def train(env: TradingGym, agent: DQNAgent, epochs, model_path, trader_path):
                     counter_loss += 1
                 else:
                     counter_pass += 1
-
-            # epoch_reward += reward
+                # accum reward
+                reward_bucket.append(reward)
 
             agent.add_memory((current_state, action, reward, state_next, game_over))
             agent.train(game_over, step)
@@ -113,6 +115,7 @@ def train(env: TradingGym, agent: DQNAgent, epochs, model_path, trader_path):
                 counter_win,
                 counter_pass,
                 profit_sum,
+                sum(reward_bucket),
                 sum(profit_bucket),
                 sum(length_bucket),
                 path_save=model_path / f"ep{epoch}",
@@ -120,6 +123,7 @@ def train(env: TradingGym, agent: DQNAgent, epochs, model_path, trader_path):
             profit_bucket = []
             profit_bucket_norm = []
             length_bucket = []
+            reward_bucket = []
             counter_win = 0
             counter_loss = 0
             counter_pass = 0
@@ -133,6 +137,7 @@ def log_and_save(
     counter_win,
     counter_pass,
     profit_total,
+    reward_sum,
     profit_sum_since_last,
     length_sum,
     path_save,
@@ -151,8 +156,10 @@ def log_and_save(
     st += f"Wins: {counter_win:4} | "
     st += f"Loss: {counter_loss:4} | "
     st += f"Pass: {counter_pass:4} | "
+    st += f"Reward: $ {reward_sum:8.2f} | "
     st += f"PNL: $ {profit_sum_since_last:8.2f} | "
     st += f"Kapital: $ {profit_total:12.2f} | "
+
     st += f"Date: {env.curr_time}"
     print(st)
 
