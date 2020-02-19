@@ -50,9 +50,9 @@ def train(env: TradingGym, agent: DQNAgent, epochs, model_path, trader_path):
         step = 1
         current_state = env.reset()
 
-        done = False
+        game_over = False
 
-        while not done:
+        while not game_over:
             # Zeige agent den State und erhalte Action
             # env.initial_action gibt an, welche Aktion
             # zum Handelsstart geführt haben, => Gegenaktion
@@ -64,9 +64,9 @@ def train(env: TradingGym, agent: DQNAgent, epochs, model_path, trader_path):
 
             # Zeige Environment State und erhalte die Response
             # Done = terminal_state
-            state_next, reward, done = env.step(Action(action))
+            state_next, reward, game_over = env.step(Action(action))
 
-            if done:
+            if game_over:
                 if reward > 0:
                     counter_win += 1
                 elif reward < 0:
@@ -76,8 +76,8 @@ def train(env: TradingGym, agent: DQNAgent, epochs, model_path, trader_path):
 
             # epoch_reward += reward
 
-            agent.add_memory((current_state, action, reward, state_next, done))
-            agent.train(done, step)
+            agent.add_memory((current_state, action, reward, state_next, game_over))
+            agent.train(game_over, step)
 
             current_state = state_next
             step += 1
