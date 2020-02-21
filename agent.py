@@ -10,7 +10,6 @@ from keras.callbacks import TensorBoard
 from collections import deque
 import datetime
 import random
-from modified_tensorboard import ModifiedTensorBoard
 from enum import Enum
 
 
@@ -21,8 +20,8 @@ class Action(Enum):
 
 
 # Hyperparameter
-MINIBATCH_SIZE = 64
-UPDATE_TARGET_EVERY = 5
+MINIBATCH_SIZE = 128
+UPDATE_TARGET_EVERY = 10
 GAMMA = 0.95
 MIN_REPLAY_MEMORY_SIZE = 1_000
 REPLAY_MEMORY_SIZE = 50_000
@@ -35,7 +34,7 @@ class DQNAgent:
         action_space=3,
         gamma=0.95,
         epsilon=1.0,
-        epsilon_min=0.01,
+        epsilon_min=0.1,
         learning_rate=0.001,
         epsilon_decay=0.995,
         name="Trader",
@@ -75,11 +74,18 @@ class DQNAgent:
     def build_network(self):
 
         model = Sequential()
-        model.add(Dense(self.state_space * 2, input_shape=(self.state_space,), name="state"))
-        model.add(Activation("relu"))
-        model.add(Dense(128))
-        model.add(Activation("relu"))
-        model.add(Dense(self.action_space, name="actions"),)
+        model.add(
+            Dense(
+                self.state_space * 2,
+                input_shape=(self.state_space,),
+                activation="relu",
+                name="state",
+            )
+        )
+        # model.add(Activation("relu"))
+        model.add(Dense(128, activation="relu"))
+        # model.add(Activation("relu"))
+        model.add(Dense(self.action_space, name="actions", activation="linear"),)
         # opt=RMSprop(lr=0.02, rho=0.9, epsilon=None, decay=0),
         self.opt = Adam(lr=self.lr)
         model.compile(loss="mse", optimizer=self.opt, metrics=["accuracy"])
@@ -131,17 +137,20 @@ class DQNAgent:
             q = self.model.predict(state)
             action = Action(np.argmax(q[0]))
 
+        # check ob Aktion gültig ist:
+        if env_initial_action == action:
+            # Wird Aktion by ausgewählt und initiale Aktion ist schon BUY.
+            # => Aktion nicht gültig
+            # Gleiches gilt für SELL
+            action = Action.HOLD
+
         return action
 
     def add_memory(self, transition):
         """transition = (state, action, reward, state_next, game_over)"""
         self.replay_memory.append(transition)
 
-    def get_Action(self, state):
-        state_ = np.array(state).reshape(-1, *state.shape)  #  TODO normalisieren
-        return np.argmax(self.model.predict(state_)[0])
-
-    def train(self, terminal_state, step):
+    def train(self, game_over, step):
         """ 
         Trainiere anhand der gemachten Erfahrungen. Wird auch als Experience Replay bezeichnet. 
         Wird erst angewandt, wenn mindestens MIN_REPLAY_MEMORY_SIZE erreicht ist
@@ -153,17 +162,12 @@ class DQNAgent:
         # Wählt zufällig Erinnerungen aus.
         minibatch = random.sample(self.replay_memory, MINIBATCH_SIZE)
 
-        current_states = np.array(
-            [transition[0] for transition in minibatch]
-        )  # TODO: normalisieren
+        # ermittle momentane Werte Qs
+        current_states = np.array([transition[0] for transition in minibatch])
         current_qs_list = self.model.predict(current_states)
 
-        new_current_states = np.array(
-            [transition[3] for transition in minibatch]
-        )  # TODO: normalisieren
-
         # Wende das Dopple DQN an!
-        # TODO: check: predict_batch?
+        new_current_states = np.array([transition[3] for transition in minibatch])
         future_qs_list = self.target_model.predict(new_current_states)
 
         # X und Y
@@ -173,6 +177,7 @@ class DQNAgent:
         for index, (state, action, reward, state_t_next, done) in enumerate(minibatch):
             # hier kommt die Formel für das Q-Leaning zum Einsatz
             if not done:
+                # Formel Qsa_new = r + gamma*max(Q_sa)
                 Q_sa_max = np.max(future_qs_list[index])
                 Q_sa_new = reward + self.gamma * Q_sa_max
             else:
@@ -186,7 +191,7 @@ class DQNAgent:
             Y_target_qs.append(current_qs)
 
         loss = self.model.fit(
-            np.array(X_states),  # TODO: normalisieren
+            np.array(X_states),
             np.array(Y_target_qs),
             batch_size=MINIBATCH_SIZE,
             verbose=0,
@@ -196,7 +201,7 @@ class DQNAgent:
         )
 
         # Überprüfen, ob das Target_model mit den neuen Werten aktualisiert werden soll
-        if terminal_state:
+        if game_over:
             self.traget_update_counter += 1
 
         if self.traget_update_counter > UPDATE_TARGET_EVERY:

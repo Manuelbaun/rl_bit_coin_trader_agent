@@ -1,3 +1,7 @@
 models/
 trade_logs
 __pycache__
+trading/
+trade_logs/
+plots/
+.vscode/

@@ -11,12 +11,7 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": [
-                "GSPC",
-                "10",
-                "1000",
-                "debug_trader", 
-                "False", 
-                "0.2"
+                "ai_trader_100000_seq"
             ]
         }
     ]

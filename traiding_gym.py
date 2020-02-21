@@ -75,7 +75,7 @@ class TradingGym(gym.Env):
 
         return self.state, self.reward, self.game_over
 
-    # kann auch Zeit sein???
+    # Setze die Zeit, von wo aus der nächste Handle beginnen kann
     def set_trading_time_index(self, index):
         self.trading_time_index = index
 
@@ -93,7 +93,7 @@ class TradingGym(gym.Env):
         self.profit_loss_norm = 0
         self.profit_loss_absolute = 0
         # Preis, zu dem entweder gekauft, oder verkauft wurde
-        self.entry_price = 0
+        self.entry_price = self.df["Close"][self.curr_index]
 
         self.game_over = False
         self.reward = 0
@@ -213,11 +213,8 @@ class TradingGym(gym.Env):
         state = np.append(state, np.array(last1h))
         state = np.append(state, np.array(last1d))
 
-        state = np.append(state, self.initial_action.value)
-        # füge die Summe bisheriger Profit/Loss zum state?
-        # als -1, 0, oder 1
-        #  TODO: Sollte der Gesamtverlust/gewinn ??
-        # state = np.append(state, np.sign(self.profit_loss_sum_norm))
+        # füge initiale Aktion ins beobachte state ein
+        # state = np.append(state, self.initial_action)
         # füge den momentanen normierten Gewinn/Verlust an
         state = np.append(state, self.profit_loss_norm)
         # füge die normierte Zeit des Tages an
@@ -225,12 +222,11 @@ class TradingGym(gym.Env):
         # füge den normierten Tag der Woche an
         state = np.append(state, self.norm_day_of_week)
 
-        # Normierung:
-        # Die Normierung läuft über alle Zahlen.
+        # Z-Transformation über kurzpreise
         # TODO: Berichtigen der Z-Transformation! "Studentisierung" siehe: https://de.wikipedia.org/wiki/Studentisierung
-        # Separiere die verschiedenen Eingänge:
-        # - Kursstand, Zeit, usw.
-        return (np.array(state) - np.mean(state)) / np.std(state)
+        state = (np.array(state) - np.mean(state)) / np.std(state)
+        # Normierung:
+        return state
 
     def _get_last_window_size_data(self):
 
@@ -307,17 +303,22 @@ class TradingGym(gym.Env):
             - Verlust vom erwirtschaften gesamt-Kapital einfließen lassen
         """
 
-        if self.game_over:
-            self.reward = self.profit_loss_norm * 100
+        # Strategie 1
+        self.reward = np.sign(self.profit_loss_norm) if self.game_over else self.reward
+        # Strategie 2
+        self.reward += self.profit_loss_norm
 
-            return self.reward
-        else:
-            return self.reward
+        return self.reward
 
-        # self.reward = np.sign(self.profit_loss_norm) if self.game_over else self.reward
+        # Strategie 3
+        # if self.game_over:
+        #     self.reward = self.profit_loss_absolute
+
+        #     return self.reward
+        # else:
+        #     return self.reward
 
         # print(self.reward + self.profit_loss_norm*100)
         # Lasse den profit_Loss mit einfließen
-        # self.reward += self.profit_loss_norm
         # return self.reward
 
